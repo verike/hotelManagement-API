@@ -1,30 +1,35 @@
 const UserService = require('../services/user.service');
+const {userModel, userValidator} = require('../models/user.model');
+const bcrypt = require('bcrypt');
+const _ = require('lodash');
 
 class UserController {
 
     // Create a user
     async createUser(req, res) {
         const reqBody = req.body;
-        console.log(reqBody)
+
+        const validData = await userValidator(reqBody);
 
         // Check if the user exists
         // If not, create user and send a response
 
-        const existingUser = await UserService.fetchOne({
-            name: reqBody.name.toLowerCase()
-        });
-
-        if (existingUser) res.status(403).json({
-            success: false,
-            message: 'User already exist'
-        })
+        if(await UserService.userExists(validData)){
+            return res.status(409).json({
+                success: false,
+                message: 'User already exist'})
+        }
         
-        const newUser = UserService.createUser(reqBody);
+        const newUser = new userModel(validData);
 
-        res.status(201).json({
+        await newUser.save();
+
+        const token = newUser.generateAuthToken();
+
+        res.header('token', token).status(201).json({
             success: true,
-            message: 'User created successfully',
-            data: newUser,
+            message: 'User created',
+            data: {...newUser.toJSON(), token},
         })
     }
 
@@ -44,7 +49,7 @@ class UserController {
             message: 'User does not exist'
         })
     
-        // Since book name is unique key, we have to make it consistent
+        // Since room name is unique key, we have to make it consistent
         if(updateData.name){
             const existingUserWithUpdateName = await UserService.fetchOne({
                 name: updateData.name.toLowerCase()
@@ -115,7 +120,7 @@ class UserController {
 
     // Fetch all Users
     async fetchAll(req, res) {
-        const reqBody = req.body;
+        // const reqBody = req.body;
 
         const existingUsers = await UserService.fetchAll({})
 
@@ -124,6 +129,22 @@ class UserController {
             message: 'Users fetched successfully',
             data: existingUsers
         });
+    }
+
+    // User login
+    async login(req, res) {
+
+        const user = await userModel.findOne({username: req.body.username});
+        if (!user) return res.status(400).json({ success: true, message: 'Invalid username or password' });
+
+        const validPassword = await bcrypt.compare(req.body.password, user.password);
+        if (!validPassword) return res.status(400).json({ success: false, message: 'Invalid username or password' });
+
+        const token = user.generateAuthToken();
+
+        res.header('token', token).status(200).json({success: true, message: 'login success', data: {...user.toJSON(), token }
+        });
+        
     }
 }
 
