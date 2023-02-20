@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Auth = require('../middlewares/authentication.middleware');
+const {userValidator} = require('../models/user.model')
 
 const {
     createUser,
@@ -13,7 +14,7 @@ const {
 
 router.route('/')
     .get(fetchAll)
-    .post(createUser)
+    .post(userValidator,createUser)
 
 router.route('/:id').all()
     .get(fetchOne)
